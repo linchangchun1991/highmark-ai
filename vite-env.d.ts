@@ -1,5 +1,4 @@
 // Manual type definitions to replace missing vite/client
-declare const process: any;
 
 declare module '*.svg' {
   import * as React from 'react';

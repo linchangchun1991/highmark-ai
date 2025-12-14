@@ -95,12 +95,14 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ data }) => {
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
                   <div>
                     <h3 className="text-lg font-bold text-white mb-1.5 group-hover:text-brand-cyan transition-colors">{job.job_name}</h3>
-                    <p className="text-slate-400 text-xs font-medium uppercase tracking-wider bg-white/5 inline-block px-2 py-1 rounded">{job.company_nature}</p>
+                    <div className="flex gap-2">
+                      <span className="text-slate-400 text-xs font-medium uppercase tracking-wider bg-white/5 inline-block px-2 py-1 rounded">推荐指数</span>
+                    </div>
                   </div>
                   <ScoreBadge score={job.match_score} />
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-8 border-t border-white/5 pt-6">
+                <div className="grid md:grid-cols-2 gap-8 border-t border-white/5 pt-6 mb-6">
                   <div className="space-y-2">
                     <h4 className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]"></span> 
@@ -116,6 +118,17 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ data }) => {
                     <p className="text-slate-300 text-sm leading-relaxed">{job.risk_why_not}</p>
                   </div>
                 </div>
+
+                {/* Apply Button */}
+                <a 
+                  href={job.apply_link} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center w-full md:w-auto px-6 py-3 bg-white text-background font-bold text-sm rounded-xl hover:bg-brand-cyan transition-colors shadow-lg shadow-white/10"
+                >
+                  立即投递 (Apply Now)
+                  <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                </a>
               </div>
             </div>
           ))}

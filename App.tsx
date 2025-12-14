@@ -1,46 +1,185 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { analyzeResume } from './services/gemini';
-import { AnalysisResult } from './types';
+import { JobService } from './services/jobStore';
+import { AnalysisResult, JobPost } from './types';
 import { ResultsDisplay } from './components/ResultsDisplay';
-import { BrainCircuitIcon, FileTextIcon, BriefcaseIcon, UploadCloudIcon, CheckCircleIcon, AlertTriangleIcon, PlusIcon, TrashIcon } from './components/ui/Icons';
+import { BrainCircuitIcon, UploadCloudIcon, CheckCircleIcon, AlertTriangleIcon, BriefcaseIcon, PlusIcon, TrashIcon } from './components/ui/Icons';
 
-const App = () => {
-  const [resumeText, setResumeText] = useState('');
+// --- ADMIN PANEL COMPONENT ---
+const AdminPanel = ({ onClose }: { onClose: () => void }) => {
+  const [jobs, setJobs] = useState<JobPost[]>(JobService.getAll());
+  const [batchInput, setBatchInput] = useState('');
   
-  // Job Pool State
-  const [jobPool, setJobPool] = useState<string[]>([]);
-  const [currentJobInput, setCurrentJobInput] = useState('');
+  const handleBatchUpload = () => {
+    // Parse tab-separated values (like copy-paste from Excel)
+    // Format: Company | Location | Type | Target | Link | Description(Optional)
+    const lines = batchInput.trim().split('\n');
+    const newJobs: JobPost[] = lines.map((line, idx) => {
+      const cols = line.split('\t');
+      // Skip empty lines
+      if (!cols[0]) return null;
+      return {
+        id: Date.now().toString() + idx,
+        company: cols[0] || 'Unknown',
+        location: cols[1] || 'Unknown',
+        type: cols[2] || 'Social/Campus',
+        target: cols[3] || 'All',
+        updated_at: new Date().toISOString().split('T')[0],
+        link: cols[4] || '#',
+        description: cols[5] || `${cols[0]} ${cols[2]} Role`
+      };
+    }).filter(job => job !== null) as JobPost[];
+
+    if (newJobs.length === 0) return;
+
+    JobService.addBatch(newJobs);
+    setJobs(JobService.getAll());
+    setBatchInput('');
+    alert(`成功添加 ${newJobs.length} 个岗位！`);
+  };
+
+  const handleClear = () => {
+    if(confirm('确定清空所有岗位数据吗？')) {
+      JobService.clear();
+      setJobs([]);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl p-8 overflow-y-auto animate-in fade-in duration-300">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <span className="bg-brand-600 p-1 rounded">💼</span> 后台岗位管理 (Admin Job DB)
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-white px-4 py-2 rounded-lg hover:bg-white/10 transition-colors">关闭 / Close</button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left: Input */}
+          <div className="lg:col-span-1 space-y-4">
+            <div className="bg-white/5 p-6 rounded-2xl border border-white/10 shadow-xl">
+              <h3 className="font-bold text-brand-cyan mb-4 flex items-center gap-2">
+                <PlusIcon className="w-4 h-4" /> 批量导入 (Batch Import)
+              </h3>
+              <p className="text-xs text-slate-400 mb-3 leading-relaxed">
+                请直接从 Excel 复制数据粘贴到下方。列顺序：<br/>
+                <code className="text-white bg-black/50 px-1 py-0.5 rounded mt-1 inline-block">公司名 | 地点 | 类型 | 对象 | 链接 | 描述</code>
+              </p>
+              <textarea
+                value={batchInput}
+                onChange={(e) => setBatchInput(e.target.value)}
+                placeholder={`示例：
+字节跳动	北京	校招	2025届	http://...	电商运营
+腾讯	深圳	实习	在校生	http://...	产品经理`}
+                className="w-full h-64 p-3 bg-black/40 border border-white/10 rounded-xl text-xs font-mono leading-relaxed text-slate-300 focus:border-brand-500 outline-none resize-none"
+              />
+              <div className="flex gap-3 mt-4">
+                <button 
+                  onClick={handleBatchUpload}
+                  disabled={!batchInput}
+                  className="flex-1 bg-brand-600 hover:bg-brand-500 text-white py-2.5 rounded-lg text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-500/20"
+                >
+                  确认导入
+                </button>
+                <button 
+                  onClick={handleClear}
+                  className="px-4 border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
+                >
+                  <TrashIcon className="w-4 h-4" /> 清空
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Table */}
+          <div className="lg:col-span-2">
+            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden shadow-xl h-[600px] flex flex-col">
+              <div className="p-4 bg-white/5 border-b border-white/5 flex justify-between items-center flex-shrink-0">
+                <span className="font-bold text-white flex items-center gap-2">
+                  <BriefcaseIcon className="w-4 h-4" /> 当前岗位库 ({jobs.length})
+                </span>
+                <span className="text-xs text-slate-500">最新上传优先</span>
+              </div>
+              <div className="overflow-auto flex-1">
+                <table className="w-full text-left text-sm text-slate-300">
+                  <thead className="bg-black/20 text-xs uppercase text-slate-500 sticky top-0 backdrop-blur-md">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">公司</th>
+                      <th className="px-4 py-3 font-semibold">地点</th>
+                      <th className="px-4 py-3 font-semibold">类型</th>
+                      <th className="px-4 py-3 font-semibold">对象</th>
+                      <th className="px-4 py-3 font-semibold">链接</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {jobs.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-slate-500">
+                          暂无数据，请在左侧导入。
+                        </td>
+                      </tr>
+                    ) : (
+                      jobs.map((job) => (
+                        <tr key={job.id} className="hover:bg-white/5 transition-colors">
+                          <td className="px-4 py-3 font-medium text-white">{job.company}</td>
+                          <td className="px-4 py-3 text-xs">{job.location}</td>
+                          <td className="px-4 py-3">
+                            <span className="px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300 text-[10px] border border-brand-500/20">
+                              {job.type}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-400">{job.target}</td>
+                          <td className="px-4 py-3">
+                            <a href={job.link} target="_blank" rel="noreferrer" className="text-brand-400 hover:text-brand-300 text-xs underline truncate max-w-[100px] block">
+                              Link
+                            </a>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- MAIN APP COMPONENT ---
+const App = () => {
+  const [resumeData, setResumeData] = useState<string>(''); 
+  const [isFile, setIsFile] = useState(false);
+  const [fileType, setFileType] = useState('');
+  const [fileName, setFileName] = useState('');
   
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [inputMode, setInputMode] = useState<'upload' | 'paste'>('upload');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleAddJob = () => {
-    if (!currentJobInput.trim()) return;
-    setJobPool([...jobPool, currentJobInput.trim()]);
-    setCurrentJobInput('');
-  };
+  // Admin State
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [availableJobCount, setAvailableJobCount] = useState(0);
 
-  const handleRemoveJob = (index: number) => {
-    const newPool = [...jobPool];
-    newPool.splice(index, 1);
-    setJobPool(newPool);
-  };
+  useEffect(() => {
+    // Ensure we are client-side before accessing JobService
+    setAvailableJobCount(JobService.getAll().length);
+  }, [showAdmin]);
 
   const handleAnalyze = async () => {
-    if (!resumeText.trim()) {
-      setError("请上传简历或粘贴简历内容 (Please provide resume content).");
+    if (!resumeData) {
+      setError("请上传简历 (Please upload a resume).");
       return;
     }
 
-    // Combine jobs from pool into a context string
-    let finalJobContext = "";
-    if (jobPool.length > 0) {
-      finalJobContext = "【待匹配岗位列表】:\n" + jobPool.map((job, i) => `${i+1}. ${job}`).join("\n\n");
-    } else {
-      finalJobContext = "用户未指定具体岗位，请根据简历自动推荐最适合的3-5个岗位方向（包括互联网大厂、国企或外企）并进行匹配分析。";
+    const jobs = JobService.getAll();
+    if (jobs.length === 0) {
+      setError("系统岗位库为空，请联系管理员添加岗位。(No jobs in database)");
+      return;
     }
 
     setIsLoading(true);
@@ -48,7 +187,7 @@ const App = () => {
     setResult(null);
 
     try {
-      const data = await analyzeResume(resumeText, finalJobContext);
+      const data = await analyzeResume(resumeData, isFile, fileType, jobs);
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "发生未知错误，请重试。");
@@ -61,44 +200,27 @@ const App = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.type === "application/pdf") {
-      alert("目前暂不支持直接解析PDF，请复制PDF中的文字粘贴到文本框中。(PDF Parsing not supported client-side, please copy-paste text)");
-      setInputMode('paste');
-      return;
-    }
+    setFileName(file.name);
+    setFileType(file.type);
+    setIsFile(true);
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const text = event.target?.result as string;
-      setResumeText(text);
+      const result = event.target?.result as string;
+      const base64Data = result.split(',')[1]; 
+      setResumeData(base64Data);
     };
     reader.onerror = () => {
-      setError("无法读取文件，请尝试直接粘贴文本。");
+      setError("文件读取失败");
     };
-    reader.readAsText(file);
-  };
-
-  const handleLoadDemo = () => {
-    setInputMode('paste');
-    setResumeText(`澳洲悉尼大学 (USYD) 硕士，Master of Media Practice。
-本科 国内211大学 广告学专业 GPA 3.6/4.0。
-语言能力：雅思 7.5 (阅读8.5)，可全英文工作。
-实习经历：
-1. 蓝色光标 (BlueFocus) - 公关实习生 (3个月)：负责某快消品牌双微一抖文案撰写，月均产出20+篇，参与策划618整合营销方案。
-2. 字节跳动 (ByteDance) - 内容运营日常实习 (2个月)：负责今日头条内容质量把控，协助处理用户反馈。
-校园经历：校学生会外联部部长，成功拉取赞助商5家，赞助金额3万元。
-技能：熟练使用Office套件，PS/PR基础，会使用秀米排版。`);
-    
-    setJobPool([
-      "字节跳动 - 国际化电商运营管培生 JD: 负责TikTok电商内容生态建设，需要流利的英语沟通能力及数据分析能力。",
-      "京东 - 采销管培生 (3C数码) JD: 负责品类规划与供应商谈判，需要极强的抗压能力和商务谈判技巧。",
-      "群邑中国 - 媒介策划专员 JD: 负责客户广告投放策略制定，需要对数字媒体趋势有敏锐洞察。"
-    ]);
+    reader.readAsDataURL(file);
   };
 
   return (
     <div className="min-h-screen bg-background text-slate-300 font-sans selection:bg-brand-500/30 selection:text-brand-cyan pb-20 overflow-x-hidden">
       
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+
       {/* Background Ambience */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-brand-600/20 rounded-full blur-[120px] animate-pulse"></div>
@@ -106,7 +228,7 @@ const App = () => {
       </div>
 
       {/* Header */}
-      <header className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-xl border-b border-white/5">
+      <header className="fixed top-0 w-full z-40 bg-background/80 backdrop-blur-xl border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="bg-gradient-to-br from-brand-600 to-brand-900 text-white p-2.5 rounded-xl shadow-[0_0_15px_rgba(79,70,229,0.4)]">
@@ -119,174 +241,96 @@ const App = () => {
               <p className="text-[10px] text-brand-cyan font-bold uppercase tracking-[0.2em] mt-1 text-opacity-80">AI Career Intelligence</p>
             </div>
           </div>
-          <button 
-            onClick={handleLoadDemo}
-            className="hidden sm:block text-xs font-semibold text-slate-400 hover:text-white border border-white/10 hover:border-brand-500/50 hover:bg-white/5 px-4 py-2 rounded-full transition-all duration-300"
-          >
-            加载演示数据
-          </button>
+          <div className="flex items-center gap-4">
+            <span className="text-xs font-mono text-slate-500 border border-white/5 px-2 py-1 rounded hidden md:block">
+              岗位库: {availableJobCount}
+            </span>
+          </div>
         </div>
       </header>
 
       <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32">
         
-        {/* Intro */}
-        <div className="text-center mb-16 max-w-3xl mx-auto">
+        {/* User Guide Hero Section */}
+        <div className="text-center mb-16 max-w-4xl mx-auto">
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6 tracking-tight drop-shadow-lg">
-            数字化选岗与 <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-cyan to-brand-purple">竞争力分析</span>
+            你的 <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-cyan to-brand-purple">AI 求职私教</span>
           </h2>
-          <p className="text-slate-400 text-lg md:text-xl font-light leading-relaxed">
-            基于 500 强企业用人标准，为您提供 <span className="text-white font-normal">精准岗位匹配</span> 与 <span className="text-white font-normal">专家级求职建议</span>。
-          </p>
+          <div className="flex flex-col md:flex-row items-center justify-center gap-6 mt-8">
+            <div className="flex items-center gap-3 bg-white/5 px-6 py-3 rounded-full border border-white/10">
+              <span className="w-6 h-6 rounded-full bg-brand-600 text-white flex items-center justify-center text-xs font-bold">1</span>
+              <span className="text-sm font-medium text-slate-300">上传简历 (PDF/Word/Image)</span>
+            </div>
+            <div className="w-8 h-px bg-white/10 hidden md:block"></div>
+            <div className="flex items-center gap-3 bg-white/5 px-6 py-3 rounded-full border border-white/10">
+              <span className="w-6 h-6 rounded-full bg-brand-600 text-white flex items-center justify-center text-xs font-bold">2</span>
+              <span className="text-sm font-medium text-slate-300">AI 智能匹配内推岗位</span>
+            </div>
+            <div className="w-8 h-px bg-white/10 hidden md:block"></div>
+            <div className="flex items-center gap-3 bg-white/5 px-6 py-3 rounded-full border border-white/10">
+              <span className="w-6 h-6 rounded-full bg-brand-600 text-white flex items-center justify-center text-xs font-bold">3</span>
+              <span className="text-sm font-medium text-slate-300">获取投递链接 & 辅导建议</span>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
           
-          {/* Left Column: Inputs */}
+          {/* Left Column: Upload */}
           <div className="lg:col-span-5 space-y-8">
             
-            {/* Step 1: Resume */}
             <div className="glass-panel rounded-3xl p-1 relative group">
               <div className="absolute -inset-0.5 bg-gradient-to-br from-white/10 to-transparent rounded-3xl opacity-50 blur-sm pointer-events-none"></div>
               
-              <div className="p-6 pb-2 relative">
-                 <h2 className="text-lg font-bold text-white mb-1 flex items-center gap-3">
-                  <span className="w-7 h-7 rounded-full bg-brand-600 flex items-center justify-center text-sm shadow-[0_0_10px_rgba(79,70,229,0.4)]">1</span>
-                  简历输入 <span className="text-slate-500 text-sm font-normal ml-auto">RESUME INPUT</span>
-                </h2>
-              </div>
-
-              <div className="px-6 pb-6 relative">
-                {/* Tabs */}
-                <div className="flex gap-2 mb-4 bg-black/20 p-1 rounded-xl border border-white/5">
-                  <button 
-                    onClick={() => setInputMode('upload')}
-                    className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2 ${inputMode === 'upload' ? 'bg-white/10 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-                  >
-                    <UploadCloudIcon className="w-4 h-4" /> 上传文件
-                  </button>
-                  <button 
-                    onClick={() => setInputMode('paste')}
-                    className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-2 ${inputMode === 'paste' ? 'bg-white/10 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-                  >
-                    <FileTextIcon className="w-4 h-4" /> 粘贴文本
-                  </button>
-                </div>
-
-                {inputMode === 'upload' ? (
-                  <div 
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-2xl h-48 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${resumeText ? 'border-brand-500/50 bg-brand-500/5' : 'border-white/10 hover:border-brand-500/50 hover:bg-white/5'}`}
-                  >
-                    <input 
-                      ref={fileInputRef} 
-                      type="file" 
-                      accept=".txt,.md,.json" 
-                      className="hidden" 
-                      onChange={handleFileUpload}
-                    />
-                    {resumeText ? (
-                      <div className="text-center p-4 animate-in zoom-in-95 duration-300">
-                        <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-3 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-                          <CheckCircleIcon className="w-6 h-6" />
-                        </div>
-                        <p className="text-sm font-bold text-emerald-400">简历已导入</p>
-                        <p className="text-xs text-slate-400 mt-2 line-clamp-2 px-4 italic">"{resumeText.substring(0, 50)}..."</p>
-                        <button onClick={(e) => { e.stopPropagation(); setResumeText(''); }} className="text-xs text-red-400 underline mt-4 hover:text-red-300 transition-colors">删除并重新上传</button>
-                      </div>
-                    ) : (
-                      <div className="text-center">
-                        <div className="w-14 h-14 bg-white/5 text-slate-400 rounded-full flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform duration-300">
-                          <UploadCloudIcon className="w-7 h-7" />
-                        </div>
-                        <p className="text-sm font-medium text-slate-300">点击上传简历 (.txt, .md)</p>
-                        <p className="text-xs text-slate-500 mt-2">暂仅支持文本文件</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                   <textarea
-                    value={resumeText}
-                    onChange={(e) => setResumeText(e.target.value)}
-                    placeholder="在此处粘贴您的简历全文..."
-                    className="w-full h-48 p-4 rounded-2xl bg-black/20 border border-white/10 focus:ring-2 focus:ring-brand-500/50 focus:border-transparent outline-none resize-none text-sm leading-relaxed placeholder:text-slate-600 text-slate-300 transition-all"
+              <div className="p-8">
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-2xl h-64 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
+                    ${fileName 
+                      ? 'border-emerald-500/50 bg-emerald-500/5' 
+                      : 'border-white/10 hover:border-brand-500/50 hover:bg-white/5'}`}
+                >
+                  <input 
+                    ref={fileInputRef} 
+                    type="file" 
+                    accept=".pdf,.png,.jpg,.jpeg" 
+                    className="hidden" 
+                    onChange={handleFileUpload}
                   />
-                )}
-              </div>
-            </div>
-
-            {/* Step 2: Job Pool (Batch Upload) */}
-            <div className="glass-panel rounded-3xl p-1 relative">
-              <div className="p-6 pb-2">
-                 <h2 className="text-lg font-bold text-white mb-1 flex items-center gap-3">
-                  <span className="w-7 h-7 rounded-full bg-brand-600 flex items-center justify-center text-sm shadow-[0_0_10px_rgba(79,70,229,0.4)]">2</span>
-                  批量上传岗位 <span className="text-slate-500 text-sm font-normal ml-auto">BATCH JOB UPLOAD</span>
-                </h2>
-              </div>
-              <div className="px-6 pb-6">
-                
-                {/* Add Job Input */}
-                <div className="mb-4">
-                  <div className="relative">
-                    <textarea
-                      value={currentJobInput}
-                      onChange={(e) => setCurrentJobInput(e.target.value)}
-                      placeholder="方法1：粘贴一个 JD (职位描述)。
-方法2：输入岗位名称 (如：字节跳动运营)。
-然后点击右下角 '+' 号添加到匹配池。"
-                      className="w-full h-24 p-4 pr-12 rounded-xl bg-black/20 border border-white/10 focus:ring-2 focus:ring-brand-500/50 focus:border-transparent outline-none resize-none text-sm leading-relaxed placeholder:text-slate-600 text-slate-300 transition-all"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleAddJob();
-                        }
-                      }}
-                    />
-                    <button 
-                      onClick={handleAddJob}
-                      className="absolute bottom-3 right-3 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-lg shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                      disabled={!currentJobInput.trim()}
-                    >
-                      <PlusIcon className="w-3 h-3" /> 添加
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-slate-500 mt-2 ml-1">提示: 这里的“添加”是存入临时匹配池。您可以重复添加多个岗位，一次性进行批量匹配分析。</p>
-                </div>
-
-                {/* Job List */}
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                  {jobPool.length === 0 ? (
-                     <div className="text-center py-6 border border-dashed border-white/10 rounded-xl bg-white/5">
-                        <p className="text-xs text-slate-500">岗位池为空</p>
-                        <p className="text-[10px] text-slate-600 mt-1">请添加岗位，或留空让 AI 自动推荐</p>
-                     </div>
-                  ) : (
-                    jobPool.map((job, idx) => (
-                      <div key={idx} className="flex items-start gap-3 p-3 bg-white/5 rounded-lg border border-white/5 hover:bg-white/10 transition-colors group">
-                        <div className="flex-shrink-0 w-5 h-5 rounded bg-brand-500/20 text-brand-400 flex items-center justify-center text-[10px] font-bold mt-0.5">
-                          {idx + 1}
-                        </div>
-                        <p className="text-xs text-slate-300 line-clamp-2 flex-grow leading-relaxed">{job}</p>
-                        <button 
-                          onClick={() => handleRemoveJob(idx)}
-                          className="text-slate-600 hover:text-red-400 transition-colors p-1"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
+                  
+                  {fileName ? (
+                    <div className="text-center p-4 animate-in zoom-in-95 duration-300 relative z-10">
+                      <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+                        <CheckCircleIcon className="w-8 h-8" />
                       </div>
-                    ))
+                      <p className="text-lg font-bold text-emerald-400 mb-1">已就绪 Ready</p>
+                      <p className="text-sm text-slate-400">{fileName}</p>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setFileName(''); setResumeData(''); }} 
+                        className="text-xs text-red-400 underline mt-4 hover:text-red-300"
+                      >
+                        移除文件
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-center relative z-10">
+                      <div className="w-20 h-20 bg-brand-500/10 text-brand-400 rounded-full flex items-center justify-center mb-6 mx-auto group-hover:scale-110 transition-transform duration-300">
+                        <UploadCloudIcon className="w-10 h-10" />
+                      </div>
+                      <p className="text-lg font-bold text-white mb-2">点击上传简历</p>
+                      <p className="text-sm text-slate-500">支持 PDF, PNG, JPG (Max 10MB)</p>
+                    </div>
                   )}
                 </div>
-
               </div>
             </div>
 
             <button
               onClick={handleAnalyze}
-              disabled={isLoading}
+              disabled={isLoading || !resumeData}
               className={`w-full py-5 rounded-2xl font-bold text-lg text-white shadow-2xl transition-all transform active:scale-[0.98] flex items-center justify-center gap-3 relative overflow-hidden group
-                ${isLoading 
-                  ? 'bg-slate-700 cursor-not-allowed' 
+                ${isLoading || !resumeData
+                  ? 'bg-slate-800 cursor-not-allowed text-slate-500' 
                   : 'bg-gradient-to-r from-brand-600 via-brand-500 to-brand-cyan hover:shadow-[0_0_40px_rgba(99,102,241,0.5)]'
                 }`}
             >
@@ -299,7 +343,7 @@ const App = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <span className="tracking-widest">正在深度分析...</span>
+                  <span className="tracking-widest">AI 解析匹配中...</span>
                 </>
               ) : (
                 <>
@@ -318,7 +362,7 @@ const App = () => {
             
             <div className="flex justify-center items-center gap-4 opacity-30 grayscale hover:grayscale-0 transition-all duration-500">
                <div className="h-px w-8 bg-slate-500"></div>
-               <p className="text-[10px] uppercase tracking-widest text-slate-400">Powered by Google Gemini 2.5</p>
+               <p className="text-[10px] uppercase tracking-widest text-slate-400">Powered by Google Gemini 2.0</p>
                <div className="h-px w-8 bg-slate-500"></div>
             </div>
           </div>
@@ -329,22 +373,33 @@ const App = () => {
               <ResultsDisplay data={result} />
             ) : (
               <div className="h-full min-h-[600px] flex flex-col items-center justify-center text-center p-12 border border-dashed border-white/10 rounded-[32px] bg-white/5 backdrop-blur-sm relative overflow-hidden">
-                {/* Decorative Background */}
-                <div className="absolute inset-0 bg-gradient-radial from-brand-600/10 to-transparent opacity-50"></div>
-                
                 <div className="w-24 h-24 bg-gradient-to-br from-white/10 to-white/5 rounded-3xl flex items-center justify-center shadow-inner border border-white/10 mb-8 relative z-10 animate-pulse-slow">
                   <BriefcaseIcon className="w-10 h-10 text-slate-400" />
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-4 relative z-10">等待分析 Awaiting Input</h3>
+                <h3 className="text-2xl font-bold text-white mb-4 relative z-10">等待简历上传 Awaiting Resume</h3>
                 <p className="text-slate-400 max-w-md leading-relaxed text-sm font-light relative z-10">
-                  请在左侧上传简历。<br/>
-                  如果您没有具体的意向岗位，我们的 AI 引擎将为您自动推荐并进行竞争力分析。
+                  我们将在 <b>{availableJobCount}</b> 个优质岗位中为您寻找最佳匹配。<br/>
+                  (AI will match you against {availableJobCount} premium jobs)
                 </p>
               </div>
             )}
           </div>
         </div>
       </main>
+
+      {/* Footer & Admin Entry */}
+      <footer className="fixed bottom-0 w-full py-4 text-center text-xs text-slate-600 border-t border-white/5 bg-background/80 backdrop-blur-md z-30">
+        <div className="flex justify-center items-center gap-4">
+          <span>© 2024 HIGHMARK CAREER</span>
+          <span className="text-slate-700">|</span>
+          <button 
+            onClick={() => setShowAdmin(true)} 
+            className="hover:text-brand-400 transition-colors font-medium"
+          >
+            Admin Portal
+          </button>
+        </div>
+      </footer>
     </div>
   );
 };
