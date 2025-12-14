@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>海马职加 HIGHMARK CAREER | AI 智能求职顾问</title>
-    <!-- Tailwind CSS CDN (保持这个是为了方便，不需要额外配置 CSS 构建) -->
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
@@ -16,14 +16,14 @@
               sans: ['Inter', 'sans-serif'],
             },
             colors: {
-              background: '#0B0C15', // Deep space dark
-              surface: '#151725', // Lighter dark for cards
+              background: '#0B0C15', 
+              surface: '#151725', 
               brand: {
-                400: '#818cf8', // Indigo
+                400: '#818cf8', 
                 500: '#6366f1',
                 600: '#4f46e5',
-                cyan: '#06b6d4', // Cyan accent
-                purple: '#a855f7', // Purple accent
+                cyan: '#06b6d4', 
+                purple: '#a855f7', 
               }
             },
             backgroundImage: {
@@ -57,7 +57,7 @@
         background: rgba(255, 255, 255, 0.05);
       }
     </style>
-  <script type="importmap">
+<script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@^19.2.3",
@@ -72,7 +72,6 @@
 </head>
   <body>
     <div id="root"></div>
-    <!-- 关键修改：告诉 Vite 这里的入口文件是 index.tsx -->
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>
