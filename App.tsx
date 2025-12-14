@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
-// Change import from gemini to aliyun
-import { analyzeResume } from './services/aliyun';
+import { analyzeResume } from './services/gemini';
 import { AnalysisResult } from './types';
 import { ResultsDisplay } from './components/ResultsDisplay';
 import { BrainCircuitIcon, FileTextIcon, BriefcaseIcon, UploadCloudIcon, CheckCircleIcon, AlertTriangleIcon, PlusIcon, TrashIcon } from './components/ui/Icons';
@@ -319,7 +318,7 @@ const App = () => {
             
             <div className="flex justify-center items-center gap-4 opacity-30 grayscale hover:grayscale-0 transition-all duration-500">
                <div className="h-px w-8 bg-slate-500"></div>
-               <p className="text-[10px] uppercase tracking-widest text-slate-400">Powered by Alibaba Cloud Qwen-Max</p>
+               <p className="text-[10px] uppercase tracking-widest text-slate-400">Powered by Google Gemini 2.5</p>
                <div className="h-px w-8 bg-slate-500"></div>
             </div>
           </div>

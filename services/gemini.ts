@@ -8,10 +8,6 @@ export const analyzeResume = async (
   resumeText: string,
   jobContext: string
 ): Promise<AnalysisResult> => {
-  if (!process.env.API_KEY) {
-    throw new Error("API Key is missing from environment variables.");
-  }
-
   const userPrompt = `
   【学员简历内容】：
   ${resumeText}
@@ -27,7 +23,6 @@ export const analyzeResume = async (
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
-        // We define the schema to ensure strict type adherence for the frontend
         responseSchema: {
           type: Type.OBJECT,
           properties: {
